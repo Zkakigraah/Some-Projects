@@ -1,0 +1,95 @@
+# Python-generated files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg-info/
+.eggs/
+build/
+dist/
+wheels/
+
+# Virtual environments and local environment state
+.venv/
+venv/
+env/
+.env
+.env.*
+.python-version
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Project runtime / local generated outputs
+*.log
+*.sqlite3
+*.db
+coverage/
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Sensitive / private data
+secrets/
+secret/
+keys/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.token
+*.bak
+*.orig
+
+# Maze-specific sensitive / generated data
+src/miniproject/maze/data/private/
+src/miniproject/maze/data/generated/
+src/miniproject/maze/data/testing/
+src/miniproject/maze/data/experiments/
+src/miniproject/maze/data/*.secret
+src/miniproject/maze/data/*.key
+src/miniproject/maze/data/*.pem
+src/miniproject/maze/data/**/*.secret
+src/miniproject/maze/data/**/*.tmp
+src/miniproject/maze/data/**/*.bak
+src/miniproject/maze/data/**/*.log
+src/miniproject/maze/data/**/*.json
+src/miniproject/maze/solved/
+src/miniproject/maze/solved/*.png
+src/miniproject/maze/solved/*.jpg
+src/miniproject/maze/solved/*.jpeg
+src/miniproject/maze/solved/*.pdf
+
+# Ignore solved / benchmark data for Maze experiments
+src/miniproject/maze/**/solved/
+src/miniproject/maze/**/*.solved
+src/miniproject/maze/**/*.result
+src/miniproject/maze/**/*.csv
+src/miniproject/maze/**/*.log
+
+# Ignore testing artifacts and local experiment data
+*.zip
+*.tar
+*.gz
+*.xz
+*.rar
+
+# Keep only project examples if desired; uncomment below if you want stricter repo hygiene
+# src/miniproject/maze/data/*.txt
+# src/miniproject/maze/data/*.png
+# src/miniproject/maze/data/*.jpg
+# src/miniproject/maze/data/*.jpeg
+# src/miniproject/maze/data/*.pdf
