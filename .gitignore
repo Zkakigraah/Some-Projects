@@ -54,7 +54,7 @@ keys/
 *.bak
 *.orig
 
-# Maze-specific sensitive / generated data
+# Maze-specific generated data
 src/miniproject/maze/data/private/
 src/miniproject/maze/data/generated/
 src/miniproject/maze/data/testing/
@@ -87,9 +87,12 @@ src/miniproject/maze/**/*.log
 *.xz
 *.rar
 
-# Keep only project examples if desired; uncomment below if you want stricter repo hygiene
-# src/miniproject/maze/data/*.txt
-# src/miniproject/maze/data/*.png
-# src/miniproject/maze/data/*.jpg
-# src/miniproject/maze/data/*.jpeg
-# src/miniproject/maze/data/*.pdf
+# Maze-generated / experiment data
+src/miniproject/maze/data/
+src/miniproject/maze/solved/
+
+# Model weights / trained outputs
+*.pth
+*.pt
+*.ckpt
+*.bin
