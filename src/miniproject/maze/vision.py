@@ -13,14 +13,12 @@ class MazeVisionParser:
     Bộ xử lý Thị giác máy tính (Computer Vision):
     - Đọc file ảnh (.png, .jpg) hoặc file PDF (.pdf).
     - Quét khe hở tự động trên TOÀN BỘ 4 CẠNH VIỀN (Trên, Dưới, Trái, Phải).
-    - Tự động xác định cặp điểm vào/ra có khoảng cách xa nhất.
-    - Bảo toàn 100% tính liên tục của tường đen (Morphological Barrier).
-    - Vẽ đường nghiệm uốn lượn sắc nét, đậm rõ ràng theo tâm hành lang.
+    - Tự động cắt lề trắng (Auto-Crop Margins) bằng tọa độ pixel đen.
+    - Xuyên thủng tường dày ở mép ảnh để đảm bảo Agent không bị kẹt.
     """
 
     @staticmethod
     def pdf_to_image(pdf_path: str, page_index: int = 0) -> Image.Image:
-        """Trích xuất trang PDF thành ảnh PIL bằng PyMuPDF."""
         doc = pymupdf.open(pdf_path)
         page = doc.load_page(page_index)
         pix = page.get_pixmap(dpi=150)
@@ -28,28 +26,21 @@ class MazeVisionParser:
 
     @staticmethod
     def _find_maze_bounding_box(gray_np: np.ndarray, threshold: int = 140) -> Tuple[int, int, int, int]:
-        """Tìm 4 đường viền đen bao quanh của mê cung để loại bỏ lề giấy."""
         h_orig, w_orig = gray_np.shape
         is_dark = gray_np < threshold
+        coords = np.argwhere(is_dark)
 
-        row_dens = np.mean(is_dark, axis=1)
-        col_dens = np.mean(is_dark, axis=0)
-
-        candidate_rows = np.where(row_dens > 0.15)[0]
-        candidate_cols = np.where(col_dens > 0.15)[0]
-
-        if len(candidate_rows) >= 2 and len(candidate_cols) >= 2:
-            r_min, r_max = int(candidate_rows[0]), int(candidate_rows[-1])
-            c_min, c_max = int(candidate_cols[0]), int(candidate_cols[-1])
+        if coords.size > 0:
+            r_min, c_min = coords.min(axis=0)
+            r_max, c_max = coords.max(axis=0)
         else:
             r_min, r_max = 0, h_orig - 1
             c_min, c_max = 0, w_orig - 1
 
-        return r_min, r_max, c_min, c_max
+        return int(r_min), int(r_max), int(c_min), int(c_max)
 
     @staticmethod
-    def _find_white_runs(bool_1d: np.ndarray, min_len: int = 6, max_len: int = 120) -> List[Tuple[int, int]]:
-        """Tìm tất cả các khoảng liên tục màu trắng trên một lát cắt viền."""
+    def _find_white_runs(bool_1d: np.ndarray, min_len: int = 2, max_len: int = 150) -> List[Tuple[int, int]]:
         runs: List[Tuple[int, int]] = []
         in_run = False
         start_idx = 0
@@ -77,19 +68,15 @@ class MazeVisionParser:
         cropped_np: np.ndarray,
         threshold: int = 140
     ) -> List[Dict]:
-        """
-        Quét độc lập cả 4 cạnh viền ngoài: Top, Bottom, Left, Right.
-        Trả về danh sách tất cả các khe hở thực tế kèm tọa độ và hướng đi vào.
-        """
         crop_h, crop_w = cropped_np.shape
-        depth = max(2, min(5, crop_h // 20, crop_w // 20))
+        depth = 2  # Quét nông để tránh nhiễu từ tường bên trong
         openings: List[Dict] = []
 
         # 1. Cạnh Trên (Top)
         top_slice = cropped_np[0:depth, :]
         top_white = np.mean(top_slice, axis=0) > threshold
-        for s, e in cls._find_white_runs(top_white):
-            if 4 <= s and e <= crop_w - 5:
+        for s, e in cls._find_white_runs(top_white, min_len=2):
+            if 1 <= s and e <= crop_w - 2:
                 openings.append({
                     "border": "top",
                     "pixel_r": 0,
@@ -102,8 +89,8 @@ class MazeVisionParser:
         # 2. Cạnh Dưới (Bottom)
         bottom_slice = cropped_np[max(0, crop_h - depth):crop_h, :]
         bottom_white = np.mean(bottom_slice, axis=0) > threshold
-        for s, e in cls._find_white_runs(bottom_white):
-            if 4 <= s and e <= crop_w - 5:
+        for s, e in cls._find_white_runs(bottom_white, min_len=2):
+            if 1 <= s and e <= crop_w - 2:
                 openings.append({
                     "border": "bottom",
                     "pixel_r": crop_h - 1,
@@ -116,8 +103,8 @@ class MazeVisionParser:
         # 3. Cạnh Trái (Left)
         left_slice = cropped_np[:, 0:depth]
         left_white = np.mean(left_slice, axis=1) > threshold
-        for s, e in cls._find_white_runs(left_white):
-            if 4 <= s and e <= crop_h - 5:
+        for s, e in cls._find_white_runs(left_white, min_len=2):
+            if 1 <= s and e <= crop_h - 2:
                 openings.append({
                     "border": "left",
                     "pixel_r": int(round((s + e) / 2.0)),
@@ -130,8 +117,8 @@ class MazeVisionParser:
         # 4. Cạnh Phải (Right)
         right_slice = cropped_np[:, max(0, crop_w - depth):crop_w]
         right_white = np.mean(right_slice, axis=1) > threshold
-        for s, e in cls._find_white_runs(right_white):
-            if 4 <= s and e <= crop_w - 5:
+        for s, e in cls._find_white_runs(right_white, min_len=2):
+            if 1 <= s and e <= crop_h - 2:
                 openings.append({
                     "border": "right",
                     "pixel_r": int(round((s + e) / 2.0)),
@@ -163,7 +150,6 @@ class MazeVisionParser:
         rgb_np = np.array(pil_rgb)
         h_orig, w_orig, _ = rgb_np.shape
 
-        # 1. Phát hiện các nét vẽ đỏ (nhãn 'start', 'goal', 'S', 'G') nếu có
         is_red = (rgb_np[:, :, 0] > 140) & (rgb_np[:, :, 1] < 100) & (rgb_np[:, :, 2] < 100)
         red_coords = np.argwhere(is_red)
 
@@ -185,28 +171,23 @@ class MazeVisionParser:
         gray_img = Image.fromarray(clean_rgb_np).convert("L")
         gray_np = np.array(gray_img)
 
-        # 2. Định vị khung viền chữ nhật của mê cung
         r_min, r_max, c_min, c_max = cls._find_maze_bounding_box(gray_np, threshold=threshold)
         crop_box = (r_min, r_max, c_min, c_max)
         cropped_np = gray_np[r_min:r_max + 1, c_min:c_max + 1]
         crop_h, crop_w = cropped_np.shape
 
-        # 3. Quét toàn bộ 4 cạnh viền ngoài tìm các khe hở
         openings = cls._detect_perimeter_openings(cropped_np, threshold=threshold)
 
-        # Đo đạc kích thước hành lang từ các khe hở phát hiện được
         if openings:
             corridor_width = float(np.median([op["width"] for op in openings]))
             corridor_width = max(8.0, min(80.0, corridor_width))
         else:
             corridor_width = 22.0
 
-        # Bước chia lưới stride sao cho 1 hành lang chứa ~5 ô, tường ~1 ô
         stride = max(2, int(round(corridor_width / 5.0)))
         grid_h = crop_h // stride
         grid_w = crop_w // stride
 
-        # 4. Xây dựng ma trận nhị phân Morphological Barrier
         grid_matrix = [[CellType.EMPTY for _ in range(grid_w)] for _ in range(grid_h)]
 
         for r in range(grid_h):
@@ -223,7 +204,6 @@ class MazeVisionParser:
         start_coord: Coordinate = (0, 0)
         goal_coord: Coordinate = (grid_h - 1, grid_w - 1)
 
-        # Trường hợp A: Có đánh dấu chữ đỏ
         if detected_start_px is not None and detected_goal_px is not None:
             sr = int(round((detected_start_px[0] - r_min) / stride))
             sc = int(round((detected_start_px[1] - c_min) / stride))
@@ -236,7 +216,6 @@ class MazeVisionParser:
             grid_matrix[start_coord[0]][start_coord[1]] = CellType.START
             grid_matrix[goal_coord[0]][goal_coord[1]] = CellType.GOAL
 
-        # Trường hợp B: Tự động chọn cặp khe hở có khoảng cách Euclid xa nhất
         elif len(openings) >= 2:
             best_pair = (openings[0], openings[1])
             max_dist_sq = -1.0
@@ -260,9 +239,9 @@ class MazeVisionParser:
                 sc = max(0, min(grid_w - 1, int(round(op["pixel_c"] / stride))))
                 grid_matrix[sr][sc] = cell_type
 
-                # Mở thông thoáng các ô bước vào bên trong hành lang
+                # Đục sâu 6 ô để xuyên qua những bức tường dày
                 dr, dc = op["inward_dr"], op["inward_dc"]
-                for step in range(1, 3):
+                for step in range(1, 6):
                     nr = max(0, min(grid_h - 1, sr + dr * step))
                     nc = max(0, min(grid_w - 1, sc + dc * step))
                     grid_matrix[nr][nc] = CellType.EMPTY
@@ -273,7 +252,6 @@ class MazeVisionParser:
             goal_coord = apply_opening_to_grid(goal_op, CellType.GOAL)
 
         else:
-            # Fallback nếu viền kín
             start_coord = (1, 1)
             goal_coord = (grid_h - 2, grid_w - 2)
             grid_matrix[start_coord[0]][start_coord[1]] = CellType.START
@@ -297,11 +275,6 @@ class MazeVisionParser:
         line_color: Tuple[int, int, int] = (235, 30, 30),
         line_width: Optional[int] = None
     ) -> None:
-        """
-        Vẽ đường đi tối ưu lên ảnh gốc:
-        - Tăng kích thước nét vẽ đậm, dễ nhìn, nổi bật giữa các bức tường đen.
-        - Thêm vòng tròn đánh dấu điểm Start (Xanh lá) và Goal (Xanh dương / Đỏ).
-        """
         if Path(input_image_path).suffix.lower() == ".pdf":
             pil_img = MazeVisionParser.pdf_to_image(input_image_path, page_index=0)
         else:
@@ -316,7 +289,6 @@ class MazeVisionParser:
         stride_y = crop_h / total_h
         stride_x = crop_w / total_w
 
-        # Chuyển đổi tọa độ ô sang pixel tâm hành lang
         pixel_points = []
         for R, C in path:
             py = r_min + int(round((R + 0.5) * stride_y))
@@ -324,11 +296,9 @@ class MazeVisionParser:
             pixel_points.append((px, py))
 
         if len(pixel_points) >= 2:
-            # Độ dày nét vẽ đậm rõ ràng (mặc định ít nhất 5px hoặc 80% bề rộng hành lang)
             actual_width = line_width or max(5, int(round(min(stride_x, stride_y) * 0.85)))
             draw.line(pixel_points, fill=line_color, width=actual_width, joint="curve")
 
-            # Vẽ điểm tròn đánh dấu START (Màu xanh lá rực rỡ)
             start_px = pixel_points[0]
             radius = max(6, actual_width + 3)
             draw.ellipse(
@@ -338,7 +308,6 @@ class MazeVisionParser:
                 width=2
             )
 
-            # Vẽ điểm tròn đánh dấu GOAL (Màu vàng cam nổi bật)
             goal_px = pixel_points[-1]
             draw.ellipse(
                 [goal_px[0] - radius, goal_px[1] - radius, goal_px[0] + radius, goal_px[1] + radius],
@@ -347,7 +316,6 @@ class MazeVisionParser:
                 width=2
             )
 
-        # Đảm bảo thư mục lưu tồn tại
         out_path = Path(output_image_path)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         pil_img.save(str(out_path))
